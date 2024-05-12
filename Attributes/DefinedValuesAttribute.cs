@@ -45,6 +45,16 @@ namespace MyBox
 		{
 			UseMethod = method;
 		}
+
+		public DefinedValuesAttribute(Type enumType)
+		{
+			if (!enumType.IsEnum)
+				throw new ArgumentException($"{enumType} is not an Enum.");
+			
+			var labelValuePairs = LabelValuePair.EnumToLabelValuePairs(enumType);
+			LabelsArray = labelValuePairs.Select(pair => pair.Label).ToArray();
+			ValuesArray = labelValuePairs.Select(pair => pair.Value).ToArray();
+		}
 	}
 
 	public class LabelValuePair
