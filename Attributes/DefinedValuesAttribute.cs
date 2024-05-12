@@ -164,7 +164,7 @@ namespace MyBox.Internal
 		
 		public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
 		{
-			Initialize(property, (MyBox2.DefinedValuesAttribute)attribute);
+			Initialize(property, (DefinedValuesAttribute)attribute);
 			
 			if (_labels.IsNullOrEmpty() || _valueType != fieldInfo.FieldType)
 			{
