@@ -51,7 +51,7 @@ namespace MyBox
 		{
 			if (!enumType.IsEnum)
 				throw new ArgumentException($"{enumType} is not an Enum.");
-			
+
 			var labelValuePairs = LabelValuePair.EnumToLabelValuePairs(enumType);
 			LabelsArray = labelValuePairs.Select(pair => pair.Label).ToArray();
 			ValuesArray = labelValuePairs.Select(pair => pair.Value).ToArray();
@@ -65,7 +65,7 @@ namespace MyBox
 			if (!enumType.IsEnum)
 				throw new ArgumentException($"{enumType} is not an Enum.");
 
-			var labels =  Enum.GetNames(enumType);
+			var labels = Enum.GetNames(enumType);
 			var values = Enum.GetValues(enumType).Cast<int>();
 			return labels.Zip(values, (label, value) => new LabelValuePair(label, value)).ToArray();
 		}
@@ -92,10 +92,10 @@ namespace MyBox.Internal
 {
 	using UnityEditor;
 	using EditorTools;
-    using System.Collections;
-    using System.Collections.Generic;
+	using System.Collections;
+	using System.Collections.Generic;
 
-    [CustomPropertyDrawer(typeof(DefinedValuesAttribute))]
+	[CustomPropertyDrawer(typeof(DefinedValuesAttribute))]
 	public class DefinedValuesAttributeDrawer : PropertyDrawer
 	{
 		private object[] _objects;
@@ -107,9 +107,9 @@ namespace MyBox.Internal
 		{
 			if (_initialized) return;
 			_initialized = true;
-			
+
 			var targetObject = targetProperty.serializedObject.targetObject;
-			
+
 			var values = defaultValuesAttribute.ValuesArray;
 			var labels = defaultValuesAttribute.LabelsArray;
 			var methodName = defaultValuesAttribute.UseMethod;
@@ -118,17 +118,17 @@ namespace MyBox.Internal
 			{
 				object[] valuesFromMethod = GetValuesAndLabelsFromMethod();
 				if (valuesFromMethod.NotNullOrEmpty())
-                {
+				{
 					var valueType = valuesFromMethod.First().GetType();
 					if (valueType.IsAssignableFrom(typeof(LabelValuePair)))
 					{
-						var labelValuePairs = valuesFromMethod.Select(x => (LabelValuePair) x);
+						var labelValuePairs = valuesFromMethod.Select(x => (LabelValuePair)x);
 						labels = labelValuePairs.Select(x => x.Label).ToArray();
 						values = labelValuePairs.Select(x => x.Value).ToArray();
 					}
-                    else values = valuesFromMethod;
-                }
-                else
+					else values = valuesFromMethod;
+				}
+				else
 				{
 					WarningsPool.LogWarning(
 						"DefinedValuesAttribute caused: Method " + methodName + " not found or returned null", targetObject);
@@ -141,11 +141,11 @@ namespace MyBox.Internal
 
 			_objects = values;
 			_valueType = firstValue.GetType();
-			
+
 			if (labels != null && labels.Length == values.Length) _labels = labels;
 			else _labels = values.Select(v => v?.ToString() ?? "NULL").ToArray();
 
-			
+
 			object[] GetValuesAndLabelsFromMethod()
 			{
 				var methodOwner = targetProperty.GetParent();
@@ -170,17 +170,17 @@ namespace MyBox.Internal
 				}
 			}
 		}
-		
+
 		public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
 		{
 			Initialize(property, (DefinedValuesAttribute)attribute);
-			
+
 			if (_labels.IsNullOrEmpty() || _valueType != fieldInfo.FieldType)
 			{
 				EditorGUI.PropertyField(position, property, label);
 				return;
 			}
-			
+
 			bool isBool = _valueType == typeof(bool);
 			bool isString = _valueType == typeof(string);
 			bool isInt = _valueType == typeof(int);
@@ -192,7 +192,6 @@ namespace MyBox.Internal
 			var newIndex = EditorGUI.Popup(position, label.text, GetSelectedIndex(), _labels);
 			EditorGUI.EndProperty();
 			if (EditorGUI.EndChangeCheck()) ApplyNewValue(newIndex);
-
 
 			int GetSelectedIndex()
 			{
@@ -227,7 +226,7 @@ namespace MyBox.Internal
 					property.SetValue(newValue);
 					EditorUtility.SetDirty(property.serializedObject.targetObject);
 				}
-				
+
 				property.serializedObject.ApplyModifiedProperties();
 			}
 		}

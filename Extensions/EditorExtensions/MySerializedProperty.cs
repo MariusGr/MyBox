@@ -113,9 +113,9 @@ namespace MyBox.EditorTools
 					return property.boolValue.ToString();
 
 				case SerializedPropertyType.Enum:
-                    return property.GetValue().ToString();
+					return property.GetValue().ToString();
 
-                default:
+				default:
 					return string.Empty;
 			}
 		}
@@ -126,7 +126,7 @@ namespace MyBox.EditorTools
 		public static int GetUniquePropertyId(this SerializedProperty property)
 			=> property.serializedObject.targetObject.GetType().GetHashCode()
 			   + property.propertyPath.GetHashCode();
-		
+
 		/// <summary>
 		/// Property path for collection without ".Array.data[x]" in it
 		/// </summary>
@@ -146,7 +146,7 @@ namespace MyBox.EditorTools
 			{
 				fieldInfo = targetType.GetField(property.propertyPath, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
 				if (fieldInfo != null) break;
-				targetType = targetType.BaseType; 
+				targetType = targetType.BaseType;
 			}
 
 			if (fieldInfo == null)
@@ -176,7 +176,6 @@ namespace MyBox.EditorTools
 			}
 			return obj;
 
-
 			object GetValueByArrayFieldName(object source, string name, int index)
 			{
 				if (!(GetValueByFieldName(source, name) is IEnumerable enumerable)) return null;
@@ -189,7 +188,7 @@ namespace MyBox.EditorTools
 			// Search "source" object for a field with "name" and get it's value
 			object GetValueByFieldName(object source, string name)
 			{
-				if (source == null)  return null;
+				if (source == null) return null;
 				var type = source.GetType();
 
 				while (type != null)
@@ -210,7 +209,7 @@ namespace MyBox.EditorTools
 		/// <summary>
 		/// Set raw object value to the SerializedProperty
 		/// </summary>
-		public static void SetValue(this SerializedProperty property,object value)
+		public static void SetValue(this SerializedProperty property, object value)
 		{
 			GetFieldInfo(property).SetValue(property.serializedObject.targetObject, value);
 		}
@@ -242,7 +241,7 @@ namespace MyBox.EditorTools
 				}
 			}
 		}
-		
+
 
 		#region SerializedProperty Get Parent
 
@@ -271,8 +270,8 @@ namespace MyBox.EditorTools
 			}
 
 			return obj;
-			
-			
+
+
 			object GetValueAt(object source, string name, int index)
 			{
 				var enumerable = GetFieldValue(source, name) as IEnumerable;
@@ -283,7 +282,7 @@ namespace MyBox.EditorTools
 					enm.MoveNext();
 				return enm.Current;
 			}
-			
+
 			object GetFieldValue(object source, string name)
 			{
 				if (source == null)
@@ -301,8 +300,8 @@ namespace MyBox.EditorTools
 				}
 
 				return null;
-			
-			
+
+
 				IEnumerable<Type> GetHierarchyTypes(Type sourceType)
 				{
 					yield return sourceType;
