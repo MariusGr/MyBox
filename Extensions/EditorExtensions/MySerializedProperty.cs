@@ -148,7 +148,10 @@ namespace MyBox.EditorTools
 				if (fieldInfo != null) break;
 				targetType = targetType.BaseType; 
 			}
-			
+
+			if (fieldInfo == null)
+				WarningsPool.LogError($"Could not get field info for {property.propertyPath} in {targetObject.GetType()}.");
+
 			return fieldInfo;
 		}
 
