@@ -1,7 +1,9 @@
 {
     "name": "MyBox",
     "rootNamespace": "",
-    "references": [],
+    "references": [
+        "TypeReferences"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

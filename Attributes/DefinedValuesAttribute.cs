@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Reflection;
 using UnityEngine;
+using TypeReferences;
 
 //TODO: Support for method returning (Str, Obj)[] collection for custom display values
 //TODO: Test the assignment of the custom data classes (serialized structs with specific values?)
@@ -72,7 +73,15 @@ namespace MyBox
 		public readonly string Label;
 		public LabelValuePair(string label, object value)
 		{
-			Value = value;
+			try
+			{
+				Value = new TypeReference((Type)value);
+			}
+			catch (InvalidCastException)
+			{
+				Value = value;
+			}
+
 			Label = label;
 		}
 	}
@@ -176,6 +185,7 @@ namespace MyBox.Internal
 			bool isString = _valueType == typeof(string);
 			bool isInt = _valueType == typeof(int);
 			bool isFloat = _valueType == typeof(float);
+			bool isTypeReference = _valueType == typeof(TypeReference);
 
 			EditorGUI.BeginChangeCheck();
 			EditorGUI.BeginProperty(position, label, property);
@@ -195,7 +205,11 @@ namespace MyBox.Internal
 					if (isFloat && Mathf.Approximately(property.floatValue, Convert.ToSingle(_objects[i]))) return i;
 
 					if (value == null) value = property.GetValue();
-					if (value == _objects[i]) return i;
+					Func<bool> isAtIndex = isTypeReference ?
+						() => value.Equals(_objects[i]) :
+						() => value == _objects[i];
+
+					if (isAtIndex.Invoke()) return i;
 				}
 
 				return 0;
