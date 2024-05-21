@@ -123,8 +123,8 @@ namespace MyBox.EditorTools
 		/// <summary>
 		/// Combination of Owner Type and Property Path hashes
 		/// </summary>
-		public static int GetUniquePropertyId(this SerializedProperty property) 
-			=> property.serializedObject.targetObject.GetType().GetHashCode() 
+		public static int GetUniquePropertyId(this SerializedProperty property)
+			=> property.serializedObject.targetObject.GetType().GetHashCode()
 			   + property.propertyPath.GetHashCode();
 		
 		/// <summary>
@@ -144,7 +144,7 @@ namespace MyBox.EditorTools
 			FieldInfo fieldInfo = null;
 			while (targetType != null)
 			{
-				fieldInfo = targetType.GetField(property.propertyPath);
+				fieldInfo = targetType.GetField(property.propertyPath, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
 				if (fieldInfo != null) break;
 				targetType = targetType.BaseType; 
 			}
