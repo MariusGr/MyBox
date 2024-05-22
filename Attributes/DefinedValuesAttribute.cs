@@ -104,7 +104,6 @@ namespace MyBox.Internal
 	using EditorTools;
 	using System.Collections;
 	using System.Collections.Generic;
-    using Codice.CM.Client.Differences.Merge;
 
     [CustomPropertyDrawer(typeof(DefinedValuesAttribute))]
 	public class DefinedValuesAttributeDrawer : PropertyDrawer
@@ -152,10 +151,10 @@ namespace MyBox.Internal
 			}
 
 			if (initializeEventname.NotNullOrEmpty())
-				SubscribeToInitializeEvent(initializeEventname);
+				SubscribeToInitializeEvent();
 			
 			if (valueChangedMethodName.NotNullOrEmpty())
-				GetOnValueChangedMethod(valueChangedMethodName);
+				GetOnValueChangedMethod();
 
 			var firstValue = values.FirstOrDefault(v => v != null);
 			if (firstValue == null) return;
@@ -166,14 +165,20 @@ namespace MyBox.Internal
 			if (labels != null && labels.Length == values.Length) _labels = labels;
 			else _labels = values.Select(v => v?.ToString() ?? "NULL").ToArray();
 
-			object[] GetValuesAndLabelsFromMethod()
+			(MethodInfo, object) GetMethod(string methodName)
 			{
 				var methodOwner = targetProperty.GetParent();
 				if (methodOwner == null) methodOwner = targetObject;
 				var type = methodOwner.GetType();
 				var bindings = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 				var methodsOnType = type.GetMethods(bindings);
-				var method = methodsOnType.SingleOrDefault(m => m.Name == getLabelAndvaluesMethodName);
+				var method = methodsOnType.SingleOrDefault(m => m.Name == methodName);
+				return (method, methodOwner);
+			}
+
+			object[] GetValuesAndLabelsFromMethod()
+			{
+				(var method, var methodOwner) = GetMethod(getLabelAndvaluesMethodName);
 				if (method == null) return null;
 
 				try
@@ -190,25 +195,20 @@ namespace MyBox.Internal
 				}
 			}
 
-			void SubscribeToInitializeEvent(string eventName)
+			void GetOnValueChangedMethod()
+			{
+				(var method, var methodOwner) = GetMethod(valueChangedMethodName);
+				if (method == null) return;
+				valueChanged += () => method.Invoke(methodOwner, null);
+			}
+
+			void SubscribeToInitializeEvent()
 			{
 				var eventOwner = targetProperty.GetParent() ?? targetObject;
                 var type = eventOwner.GetType();
-				var eventInfo = type.GetEvent(eventName);
+				var eventInfo = type.GetEvent(initializeEventname);
 				Delegate handler = Delegate.CreateDelegate(eventInfo.EventHandlerType, this, GetType().GetMethod(nameof(OnInitializationForced), BindingFlags.Instance | BindingFlags.NonPublic));
 				eventInfo.AddEventHandler(eventOwner, handler);
-			}
-
-			void GetOnValueChangedMethod(string valueChangedMethodName)
-			{
-				var methodOwner = targetProperty.GetParent();
-				if (methodOwner == null) methodOwner = targetObject;
-				var type = methodOwner.GetType();
-				var bindings = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
-				var methodsOnType = type.GetMethods(bindings);
-				var method = methodsOnType.SingleOrDefault(m => m.Name == valueChangedMethodName);
-				if (method == null) return;
-				valueChanged += () => method.Invoke(methodOwner, null);
 			}
 		}
 
