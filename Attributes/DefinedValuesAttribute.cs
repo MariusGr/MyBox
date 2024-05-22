@@ -21,14 +21,16 @@ namespace MyBox
 	{
 		public readonly object[] ValuesArray;
 		public readonly string[] LabelsArray;
-		public readonly string UseMethod;
+		public readonly string GetLabelsAndValuesMethod;
+		public readonly string InitializeEvent;
 
-		public DefinedValuesAttribute(params object[] definedValues)
+		public DefinedValuesAttribute(string initializeEvent = null, params object[] definedValues)
 		{
 			ValuesArray = definedValues;
+			InitializeEvent = initializeEvent;
 		}
 
-		public DefinedValuesAttribute(bool withLabels, params object[] definedValues)
+		public DefinedValuesAttribute(bool withLabels, string initializeEvent = null, params object[] definedValues)
 		{
 			var actualLength = definedValues.Length / 2;
 			ValuesArray = new object[actualLength];
@@ -40,14 +42,17 @@ namespace MyBox
 				LabelsArray[actualIndex] = definedValues[++i].ToString();
 				actualIndex++;
 			}
+			InitializeEvent = initializeEvent;
 		}
 
-		public DefinedValuesAttribute(string method)
-		{
-			UseMethod = method;
-		}
+        public DefinedValuesAttribute(string getLabelsAndValuesMethod, string initializeEvent = null)
+        {
+            GetLabelsAndValuesMethod = getLabelsAndValuesMethod;
+			InitializeEvent = initializeEvent;
+			Debug.Log(InitializeEvent);
+        }
 
-		public DefinedValuesAttribute(Type enumType)
+        public DefinedValuesAttribute(Type enumType, string initializeEvent = null)
 		{
 			if (!enumType.IsEnum)
 				throw new ArgumentException($"{enumType} is not an Enum.");
@@ -55,6 +60,7 @@ namespace MyBox
 			var labelValuePairs = LabelValuePair.EnumToLabelValuePairs(enumType);
 			LabelsArray = labelValuePairs.Select(pair => pair.Label).ToArray();
 			ValuesArray = labelValuePairs.Select(pair => pair.Value).ToArray();
+			InitializeEvent = initializeEvent;
 		}
 	}
 
@@ -95,13 +101,19 @@ namespace MyBox.Internal
 	using System.Collections;
 	using System.Collections.Generic;
 
-	[CustomPropertyDrawer(typeof(DefinedValuesAttribute))]
+    [CustomPropertyDrawer(typeof(DefinedValuesAttribute))]
 	public class DefinedValuesAttributeDrawer : PropertyDrawer
 	{
 		private object[] _objects;
 		private string[] _labels;
 		private Type _valueType;
 		private bool _initialized;
+
+		private void OnInitializationForced(object sender, EventArgs eventArgs)
+		{
+			Debug.Log("Force");
+			_initialized = false;
+		}
 
 		private void Initialize(SerializedProperty targetProperty, DefinedValuesAttribute defaultValuesAttribute)
 		{
@@ -112,9 +124,10 @@ namespace MyBox.Internal
 
 			var values = defaultValuesAttribute.ValuesArray;
 			var labels = defaultValuesAttribute.LabelsArray;
-			var methodName = defaultValuesAttribute.UseMethod;
+			var getLabelAndvaluesMethod = defaultValuesAttribute.GetLabelsAndValuesMethod;
+			var initializeEvent = defaultValuesAttribute.InitializeEvent;
 
-			if (methodName.NotNullOrEmpty())
+			if (getLabelAndvaluesMethod.NotNullOrEmpty())
 			{
 				object[] valuesFromMethod = GetValuesAndLabelsFromMethod();
 				if (valuesFromMethod.NotNullOrEmpty())
@@ -131,10 +144,13 @@ namespace MyBox.Internal
 				else
 				{
 					WarningsPool.LogWarning(
-						"DefinedValuesAttribute caused: Method " + methodName + " not found or returned null", targetObject);
+						"DefinedValuesAttribute caused: Method " + getLabelAndvaluesMethod + " not found or returned null", targetObject);
 					return;
 				}
 			}
+
+			if (initializeEvent.NotNullOrEmpty())
+				SubscribeToInitializeEvent(initializeEvent);
 
 			var firstValue = values.FirstOrDefault(v => v != null);
 			if (firstValue == null) return;
@@ -145,7 +161,6 @@ namespace MyBox.Internal
 			if (labels != null && labels.Length == values.Length) _labels = labels;
 			else _labels = values.Select(v => v?.ToString() ?? "NULL").ToArray();
 
-
 			object[] GetValuesAndLabelsFromMethod()
 			{
 				var methodOwner = targetProperty.GetParent();
@@ -153,7 +168,7 @@ namespace MyBox.Internal
 				var type = methodOwner.GetType();
 				var bindings = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 				var methodsOnType = type.GetMethods(bindings);
-				var method = methodsOnType.SingleOrDefault(m => m.Name == methodName);
+				var method = methodsOnType.SingleOrDefault(m => m.Name == getLabelAndvaluesMethod);
 				if (method == null) return null;
 
 				try
@@ -168,6 +183,18 @@ namespace MyBox.Internal
 				{
 					return null;
 				}
+			}
+
+			void SubscribeToInitializeEvent(string eventName)
+			{
+				var methodOwner = targetProperty.GetParent();
+				if (methodOwner == null) methodOwner = targetObject;
+				var type = methodOwner.GetType();
+				Debug.Log(eventName);
+				var eventInfo = type.GetEvent(eventName);
+				Debug.Log(eventInfo);
+				Delegate handler = Delegate.CreateDelegate(eventInfo.EventHandlerType, this, GetType().GetMethod(nameof(OnInitializationForced), BindingFlags.Instance | BindingFlags.NonPublic));
+				eventInfo.AddEventHandler(methodOwner, handler);
 			}
 		}
 
