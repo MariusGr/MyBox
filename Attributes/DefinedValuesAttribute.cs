@@ -23,14 +23,16 @@ namespace MyBox
 		public readonly string[] LabelsArray;
 		public readonly string GetLabelsAndValuesMethod;
 		public readonly string InitializeEvent;
+		public readonly string ValueChangedMethod;
 
-		public DefinedValuesAttribute(string initializeEvent = null, params object[] definedValues)
+		public DefinedValuesAttribute(string initializeEvent = null, string valueChangedMethod = null, params object[] definedValues)
 		{
 			ValuesArray = definedValues;
 			InitializeEvent = initializeEvent;
+			ValueChangedMethod = valueChangedMethod;
 		}
 
-		public DefinedValuesAttribute(bool withLabels, string initializeEvent = null, params object[] definedValues)
+		public DefinedValuesAttribute(bool withLabels, string initializeEvent = null, string valueChangedMethod = null, params object[] definedValues)
 		{
 			var actualLength = definedValues.Length / 2;
 			ValuesArray = new object[actualLength];
@@ -43,16 +45,17 @@ namespace MyBox
 				actualIndex++;
 			}
 			InitializeEvent = initializeEvent;
+			ValueChangedMethod = valueChangedMethod;
 		}
 
-        public DefinedValuesAttribute(string getLabelsAndValuesMethod, string initializeEvent = null)
+        public DefinedValuesAttribute(string getLabelsAndValuesMethod, string initializeEvent = null, string valueChangedMethod = null)
         {
             GetLabelsAndValuesMethod = getLabelsAndValuesMethod;
 			InitializeEvent = initializeEvent;
-			Debug.Log(InitializeEvent);
+			ValueChangedMethod = valueChangedMethod;
         }
 
-        public DefinedValuesAttribute(Type enumType, string initializeEvent = null)
+        public DefinedValuesAttribute(Type enumType, string initializeEvent = null, string valueChangedMethod = null)
 		{
 			if (!enumType.IsEnum)
 				throw new ArgumentException($"{enumType} is not an Enum.");
@@ -61,6 +64,7 @@ namespace MyBox
 			LabelsArray = labelValuePairs.Select(pair => pair.Label).ToArray();
 			ValuesArray = labelValuePairs.Select(pair => pair.Value).ToArray();
 			InitializeEvent = initializeEvent;
+			ValueChangedMethod = valueChangedMethod;
 		}
 	}
 
@@ -100,6 +104,7 @@ namespace MyBox.Internal
 	using EditorTools;
 	using System.Collections;
 	using System.Collections.Generic;
+    using Codice.CM.Client.Differences.Merge;
 
     [CustomPropertyDrawer(typeof(DefinedValuesAttribute))]
 	public class DefinedValuesAttributeDrawer : PropertyDrawer
@@ -108,14 +113,10 @@ namespace MyBox.Internal
 		private string[] _labels;
 		private Type _valueType;
 		private bool _initialized;
+		private Action valueChanged;
 
-		private void OnInitializationForced(object sender, EventArgs eventArgs)
-		{
-			Debug.Log("Force");
-			_initialized = false;
-		}
-
-		private void Initialize(SerializedProperty targetProperty, DefinedValuesAttribute defaultValuesAttribute)
+        private void OnInitializationForced(object sender, EventArgs eventArgs) => _initialized = false;
+        private void Initialize(SerializedProperty targetProperty, DefinedValuesAttribute defaultValuesAttribute)
 		{
 			if (_initialized) return;
 			_initialized = true;
@@ -124,10 +125,11 @@ namespace MyBox.Internal
 
 			var values = defaultValuesAttribute.ValuesArray;
 			var labels = defaultValuesAttribute.LabelsArray;
-			var getLabelAndvaluesMethod = defaultValuesAttribute.GetLabelsAndValuesMethod;
-			var initializeEvent = defaultValuesAttribute.InitializeEvent;
+			var getLabelAndvaluesMethodName = defaultValuesAttribute.GetLabelsAndValuesMethod;
+			var initializeEventname = defaultValuesAttribute.InitializeEvent;
+			var valueChangedMethodName = defaultValuesAttribute.ValueChangedMethod;
 
-			if (getLabelAndvaluesMethod.NotNullOrEmpty())
+			if (getLabelAndvaluesMethodName.NotNullOrEmpty())
 			{
 				object[] valuesFromMethod = GetValuesAndLabelsFromMethod();
 				if (valuesFromMethod.NotNullOrEmpty())
@@ -144,13 +146,16 @@ namespace MyBox.Internal
 				else
 				{
 					WarningsPool.LogWarning(
-						"DefinedValuesAttribute caused: Method " + getLabelAndvaluesMethod + " not found or returned null", targetObject);
+						"DefinedValuesAttribute caused: Method " + getLabelAndvaluesMethodName + " not found or returned null", targetObject);
 					return;
 				}
 			}
 
-			if (initializeEvent.NotNullOrEmpty())
-				SubscribeToInitializeEvent(initializeEvent);
+			if (initializeEventname.NotNullOrEmpty())
+				SubscribeToInitializeEvent(initializeEventname);
+			
+			if (valueChangedMethodName.NotNullOrEmpty())
+				GetOnValueChangedMethod(valueChangedMethodName);
 
 			var firstValue = values.FirstOrDefault(v => v != null);
 			if (firstValue == null) return;
@@ -168,7 +173,7 @@ namespace MyBox.Internal
 				var type = methodOwner.GetType();
 				var bindings = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 				var methodsOnType = type.GetMethods(bindings);
-				var method = methodsOnType.SingleOrDefault(m => m.Name == getLabelAndvaluesMethod);
+				var method = methodsOnType.SingleOrDefault(m => m.Name == getLabelAndvaluesMethodName);
 				if (method == null) return null;
 
 				try
@@ -187,18 +192,27 @@ namespace MyBox.Internal
 
 			void SubscribeToInitializeEvent(string eventName)
 			{
+				var eventOwner = targetProperty.GetParent() ?? targetObject;
+                var type = eventOwner.GetType();
+				var eventInfo = type.GetEvent(eventName);
+				Delegate handler = Delegate.CreateDelegate(eventInfo.EventHandlerType, this, GetType().GetMethod(nameof(OnInitializationForced), BindingFlags.Instance | BindingFlags.NonPublic));
+				eventInfo.AddEventHandler(eventOwner, handler);
+			}
+
+			void GetOnValueChangedMethod(string valueChangedMethodName)
+			{
 				var methodOwner = targetProperty.GetParent();
 				if (methodOwner == null) methodOwner = targetObject;
 				var type = methodOwner.GetType();
-				Debug.Log(eventName);
-				var eventInfo = type.GetEvent(eventName);
-				Debug.Log(eventInfo);
-				Delegate handler = Delegate.CreateDelegate(eventInfo.EventHandlerType, this, GetType().GetMethod(nameof(OnInitializationForced), BindingFlags.Instance | BindingFlags.NonPublic));
-				eventInfo.AddEventHandler(methodOwner, handler);
+				var bindings = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+				var methodsOnType = type.GetMethods(bindings);
+				var method = methodsOnType.SingleOrDefault(m => m.Name == valueChangedMethodName);
+				if (method == null) return;
+				valueChanged += () => method.Invoke(methodOwner, null);
 			}
 		}
 
-		public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
+        public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
 		{
 			Initialize(property, (DefinedValuesAttribute)attribute);
 
@@ -255,6 +269,7 @@ namespace MyBox.Internal
 				}
 
 				property.serializedObject.ApplyModifiedProperties();
+				valueChanged?.Invoke();
 			}
 		}
 	}
