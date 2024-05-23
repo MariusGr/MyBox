@@ -235,7 +235,10 @@ namespace MyBox.Internal
 			EditorGUI.BeginProperty(position, label, property);
 			var newIndex = EditorGUI.Popup(position, label.text, GetSelectedIndex(), _labels);
 			EditorGUI.EndProperty();
-			if (EditorGUI.EndChangeCheck()) ApplyNewValue(newIndex);
+
+			// Apply value of something changed or if if the selected value is null (to make sure any leftover value is override by null e.g. on Editor load)
+			if (EditorGUI.EndChangeCheck() || _objects[newIndex] == null)
+				ApplyNewValue(newIndex);
 
 			int GetSelectedIndex()
 			{
