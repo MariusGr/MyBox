@@ -191,8 +191,9 @@ namespace MyBox.Internal
 						values.Add(element);
 					return values.ToArray();
 				}
-				catch
+				catch (Exception e)
 				{
+					WarningsPool.LogWarning(e.ToString());
 					return null;
 				}
 			}
