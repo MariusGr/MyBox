@@ -127,7 +127,6 @@ namespace MyBox.Internal
 			var getLabelAndValuesMethodName = defaultValuesAttribute.GetLabelsAndValuesMethod;
 			var initializeEventname = defaultValuesAttribute.InitializeEvent;
 			var valueChangedMethodName = defaultValuesAttribute.ValueChangedMethod;
-			Debug.Log(getLabelAndValuesMethodName);
 
 			if (getLabelAndValuesMethodName.NotNullOrEmpty())
 			{
@@ -179,7 +178,6 @@ namespace MyBox.Internal
 
 			object[] GetValuesAndLabelsFromMethod()
 			{
-				Debug.Log(targetProperty.name);
 				(var method, var methodOwner) = GetMethod(getLabelAndValuesMethodName);
 				if (method == null) return null;
 
