@@ -124,11 +124,12 @@ namespace MyBox.Internal
 
 			var values = defaultValuesAttribute.ValuesArray;
 			var labels = defaultValuesAttribute.LabelsArray;
-			var getLabelAndvaluesMethodName = defaultValuesAttribute.GetLabelsAndValuesMethod;
+			var getLabelAndValuesMethodName = defaultValuesAttribute.GetLabelsAndValuesMethod;
 			var initializeEventname = defaultValuesAttribute.InitializeEvent;
 			var valueChangedMethodName = defaultValuesAttribute.ValueChangedMethod;
+			Debug.Log(getLabelAndValuesMethodName);
 
-			if (getLabelAndvaluesMethodName.NotNullOrEmpty())
+			if (getLabelAndValuesMethodName.NotNullOrEmpty())
 			{
 				object[] valuesFromMethod = GetValuesAndLabelsFromMethod();
 				if (valuesFromMethod.NotNullOrEmpty())
@@ -145,7 +146,7 @@ namespace MyBox.Internal
 				else
 				{
 					WarningsPool.LogWarning(
-						"DefinedValuesAttribute caused: Method " + getLabelAndvaluesMethodName + " not found or returned null", targetObject);
+						"DefinedValuesAttribute caused: Method " + getLabelAndValuesMethodName + " not found or returned null", targetObject);
 					return;
 				}
 			}
@@ -178,7 +179,8 @@ namespace MyBox.Internal
 
 			object[] GetValuesAndLabelsFromMethod()
 			{
-				(var method, var methodOwner) = GetMethod(getLabelAndvaluesMethodName);
+				Debug.Log(targetProperty.name);
+				(var method, var methodOwner) = GetMethod(getLabelAndValuesMethodName);
 				if (method == null) return null;
 
 				try
