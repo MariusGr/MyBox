@@ -24,15 +24,24 @@ namespace MyBox
 		public readonly string GetLabelsAndValuesMethod;
 		public readonly string InitializeEvent;
 		public readonly string ValueChangedMethod;
+		public readonly string ValidationMethod;
 
-		public DefinedValuesAttribute(string initializeEvent = null, string valueChangedMethod = null, params object[] definedValues)
+		public DefinedValuesAttribute(string initializeEvent = null,
+									  string valueChangedMethod = null,
+									  string validationMethod = null,
+									  params object[] definedValues)
 		{
 			ValuesArray = definedValues;
 			InitializeEvent = initializeEvent;
 			ValueChangedMethod = valueChangedMethod;
+			ValidationMethod = validationMethod;
 		}
 
-		public DefinedValuesAttribute(bool withLabels, string initializeEvent = null, string valueChangedMethod = null, params object[] definedValues)
+		public DefinedValuesAttribute(bool withLabels,
+									  string initializeEvent = null,
+									  string valueChangedMethod = null,
+									  string validationMethod = null,
+									  params object[] definedValues)
 		{
 			var actualLength = definedValues.Length / 2;
 			ValuesArray = new object[actualLength];
@@ -46,16 +55,24 @@ namespace MyBox
 			}
 			InitializeEvent = initializeEvent;
 			ValueChangedMethod = valueChangedMethod;
+			ValidationMethod = validationMethod;
 		}
 
-        public DefinedValuesAttribute(string getLabelsAndValuesMethod, string initializeEvent = null, string valueChangedMethod = null)
-        {
-            GetLabelsAndValuesMethod = getLabelsAndValuesMethod;
+		public DefinedValuesAttribute(string getLabelsAndValuesMethod,
+									  string initializeEvent = null,
+									  string valueChangedMethod = null,
+									  string validationMethod = null)
+		{
+			GetLabelsAndValuesMethod = getLabelsAndValuesMethod;
 			InitializeEvent = initializeEvent;
 			ValueChangedMethod = valueChangedMethod;
-        }
+			ValidationMethod = validationMethod;
+		}
 
-        public DefinedValuesAttribute(Type enumType, string initializeEvent = null, string valueChangedMethod = null)
+		public DefinedValuesAttribute(Type enumType,
+									  string initializeEvent = null,
+									  string valueChangedMethod = null,
+									  string validationMethod = null)
 		{
 			if (!enumType.IsEnum)
 				throw new ArgumentException($"{enumType} is not an Enum.");
@@ -65,6 +82,7 @@ namespace MyBox
 			ValuesArray = labelValuePairs.Select(pair => pair.Value).ToArray();
 			InitializeEvent = initializeEvent;
 			ValueChangedMethod = valueChangedMethod;
+			ValidationMethod = validationMethod;
 		}
 	}
 
@@ -105,7 +123,7 @@ namespace MyBox.Internal
 	using System.Collections;
 	using System.Collections.Generic;
 
-    [CustomPropertyDrawer(typeof(DefinedValuesAttribute))]
+	[CustomPropertyDrawer(typeof(DefinedValuesAttribute))]
 	public class DefinedValuesAttributeDrawer : PropertyDrawer
 	{
 		private object[] _objects;
@@ -113,9 +131,10 @@ namespace MyBox.Internal
 		private Type _valueType;
 		private bool _initialized;
 		private Action valueChanged;
+		private Func<int, object, bool> validateSelection;
 
-        private void OnInitializationForced(object sender, EventArgs eventArgs) => _initialized = false;
-        private void Initialize(SerializedProperty targetProperty, DefinedValuesAttribute defaultValuesAttribute)
+		private void OnInitializationForced(object sender, EventArgs eventArgs) => _initialized = false;
+		private void Initialize(SerializedProperty targetProperty, DefinedValuesAttribute defaultValuesAttribute)
 		{
 			if (_initialized) return;
 			_initialized = true;
@@ -127,6 +146,7 @@ namespace MyBox.Internal
 			var getLabelAndValuesMethodName = defaultValuesAttribute.GetLabelsAndValuesMethod;
 			var initializeEventname = defaultValuesAttribute.InitializeEvent;
 			var valueChangedMethodName = defaultValuesAttribute.ValueChangedMethod;
+			var validationMethodName = defaultValuesAttribute.ValidationMethod;
 
 			if (getLabelAndValuesMethodName.NotNullOrEmpty())
 			{
@@ -152,9 +172,12 @@ namespace MyBox.Internal
 
 			if (initializeEventname.NotNullOrEmpty())
 				SubscribeToInitializeEvent();
-			
+
 			if (valueChangedMethodName.NotNullOrEmpty())
 				GetOnValueChangedMethod();
+
+			if (validationMethodName.NotNullOrEmpty())
+				GetvalidationMethod();
 
 			var firstValue = values.FirstOrDefault(v => v != null);
 			if (firstValue == null) return;
@@ -203,17 +226,40 @@ namespace MyBox.Internal
 				valueChanged += () => method.Invoke(methodOwner, null);
 			}
 
+			void GetvalidationMethod()
+			{
+				(var method, var methodOwner) = GetMethod(validationMethodName);
+				if (method == null)
+				{
+					validateSelection = (_, _) => true;
+					return;
+				}
+
+				validateSelection = (index, value) =>
+                {
+					try
+					{
+                   		return (bool)method.Invoke(methodOwner, new object[] { index, value });
+					}
+					catch (Exception e)
+					{
+						WarningsPool.LogWarning(e.ToString());
+						return true;
+					}
+                };
+			}
+
 			void SubscribeToInitializeEvent()
 			{
 				var eventOwner = targetProperty.GetParent() ?? targetObject;
-                var type = eventOwner.GetType();
+				var type = eventOwner.GetType();
 				var eventInfo = type.GetEvent(initializeEventname);
 				Delegate handler = Delegate.CreateDelegate(eventInfo.EventHandlerType, this, GetType().GetMethod(nameof(OnInitializationForced), BindingFlags.Instance | BindingFlags.NonPublic));
 				eventInfo.AddEventHandler(eventOwner, handler);
 			}
 		}
 
-        public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
+		public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
 		{
 			Initialize(property, (DefinedValuesAttribute)attribute);
 
@@ -262,6 +308,10 @@ namespace MyBox.Internal
 			void ApplyNewValue(int newValueIndex)
 			{
 				var newValue = _objects[newValueIndex];
+
+				if (!validateSelection(newValueIndex, newValue))
+					return;
+
 				if (isBool) property.boolValue = Convert.ToBoolean(newValue);
 				else if (isString) property.stringValue = Convert.ToString(newValue);
 				else if (isInt) property.intValue = Convert.ToInt32(newValue);
