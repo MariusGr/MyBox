@@ -309,7 +309,7 @@ namespace MyBox.Internal
 			{
 				var newValue = _objects[newValueIndex];
 
-				if (!validateSelection(newValueIndex, newValue))
+				if (validateSelection != null && !validateSelection(newValueIndex, newValue))
 					return;
 
 				if (isBool) property.boolValue = Convert.ToBoolean(newValue);
