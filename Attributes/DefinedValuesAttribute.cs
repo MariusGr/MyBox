@@ -126,18 +126,29 @@ namespace MyBox.Internal
 	[CustomPropertyDrawer(typeof(DefinedValuesAttribute))]
 	public class DefinedValuesAttributeDrawer : PropertyDrawer
 	{
-		private object[] _objects;
-		private string[] _labels;
-		private Type _valueType;
-		private bool _initialized;
-		private Action valueChanged;
-		private Func<int, object, bool> validateSelection;
+		private Dictionary<SerializedProperty, DefinedValuesData> _propertyToData = new();
 
-		private void OnInitializationForced(object sender, EventArgs eventArgs) => _initialized = false;
-		private void Initialize(SerializedProperty targetProperty, DefinedValuesAttribute defaultValuesAttribute)
+		struct DefinedValuesData
 		{
-			if (_initialized) return;
-			_initialized = true;
+			public object[] Objects;
+			public string[] Labels;
+			public Type ValueType;
+			public bool Initialized;
+			public Action ValueChanged;
+			public Func<int, object, bool> ValidateSelection;
+		}
+
+		private void OnInitializationForced(object sender, EventArgs eventArgs) => _propertyToData.Values.ForEach(data => data.Initialized = false);
+		private DefinedValuesData Initialize(SerializedProperty targetProperty, DefinedValuesAttribute defaultValuesAttribute)
+		{
+			if (!_propertyToData.TryGetValue(targetProperty, out var data))
+			{
+				data = new DefinedValuesData();
+				_propertyToData.Add(targetProperty, data);
+			}
+
+			if (data.Initialized) return data;
+			data.Initialized = true;
 
 			var targetObject = targetProperty.serializedObject.targetObject;
 
@@ -166,7 +177,7 @@ namespace MyBox.Internal
 				{
 					WarningsPool.LogWarning(
 						"DefinedValuesAttribute caused: Method " + getLabelAndValuesMethodName + " not found or returned null", targetObject);
-					return;
+					return data;
 				}
 			}
 
@@ -180,13 +191,15 @@ namespace MyBox.Internal
 				GetvalidationMethod();
 
 			var firstValue = values.FirstOrDefault(v => v != null);
-			if (firstValue == null) return;
+			if (firstValue == null) return data;
 
-			_objects = values;
-			_valueType = firstValue.GetType();
+			data.Objects = values;
+			data.ValueType = firstValue.GetType();
 
-			if (labels != null && labels.Length == values.Length) _labels = labels;
-			else _labels = values.Select(v => v?.ToString() ?? "NULL").ToArray();
+			if (labels != null && labels.Length == values.Length) data.Labels = labels;
+			else data.Labels = values.Select(v => v?.ToString() ?? "NULL").ToArray();
+
+			return data;
 
 			(MethodInfo, object) GetMethod(string methodName)
 			{
@@ -223,7 +236,7 @@ namespace MyBox.Internal
 			{
 				(var method, var methodOwner) = GetMethod(valueChangedMethodName);
 				if (method == null) return;
-				valueChanged += () => method.Invoke(methodOwner, null);
+				data.ValueChanged += () => method.Invoke(methodOwner, null);
 			}
 
 			void GetvalidationMethod()
@@ -231,22 +244,22 @@ namespace MyBox.Internal
 				(var method, var methodOwner) = GetMethod(validationMethodName);
 				if (method == null)
 				{
-					validateSelection = (_, _) => true;
+					data.ValidateSelection = (_, _) => true;
 					return;
 				}
 
-				validateSelection = (index, value) =>
-                {
+				data.ValidateSelection = (index, value) =>
+				{
 					try
 					{
-                   		return (bool)method.Invoke(methodOwner, new object[] { index, value });
+						return (bool)method.Invoke(methodOwner, new object[] { index, value });
 					}
 					catch (Exception e)
 					{
 						WarningsPool.LogWarning(e.ToString());
 						return true;
 					}
-                };
+				};
 			}
 
 			void SubscribeToInitializeEvent()
@@ -261,43 +274,43 @@ namespace MyBox.Internal
 
 		public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
 		{
-			Initialize(property, (DefinedValuesAttribute)attribute);
+			var data = Initialize(property, (DefinedValuesAttribute)attribute);
 
-			if (_labels.IsNullOrEmpty() || _valueType != fieldInfo.FieldType)
+			if (data.Labels.IsNullOrEmpty() || data.ValueType != fieldInfo.FieldType)
 			{
 				EditorGUI.PropertyField(position, property, label);
 				return;
 			}
 
-			bool isBool = _valueType == typeof(bool);
-			bool isString = _valueType == typeof(string);
-			bool isInt = _valueType == typeof(int);
-			bool isFloat = _valueType == typeof(float);
-			bool isTypeReference = _valueType == typeof(TypeReference);
+			bool isBool = data.ValueType == typeof(bool);
+			bool isString = data.ValueType == typeof(string);
+			bool isInt = data.ValueType == typeof(int);
+			bool isFloat = data.ValueType == typeof(float);
+			bool isTypeReference = data.ValueType == typeof(TypeReference);
 
 			EditorGUI.BeginChangeCheck();
 			EditorGUI.BeginProperty(position, label, property);
-			var newIndex = EditorGUI.Popup(position, label.text, GetSelectedIndex(), _labels);
+			var newIndex = EditorGUI.Popup(position, label.text, GetSelectedIndex(), data.Labels);
 			EditorGUI.EndProperty();
 
 			// Apply value of something changed or if if the selected value is null (to make sure any leftover value is override by null e.g. on Editor load)
-			if (EditorGUI.EndChangeCheck() || _objects[newIndex] == null)
+			if (EditorGUI.EndChangeCheck() || data.Objects[newIndex] == null)
 				ApplyNewValue(newIndex);
 
 			int GetSelectedIndex()
 			{
 				object value = null;
-				for (var i = 0; i < _objects.Length; i++)
+				for (var i = 0; i < data.Objects.Length; i++)
 				{
-					if (isBool && property.boolValue == Convert.ToBoolean(_objects[i])) return i;
-					if (isString && property.stringValue == Convert.ToString(_objects[i])) return i;
-					if (isInt && property.intValue == Convert.ToInt32(_objects[i])) return i;
-					if (isFloat && Mathf.Approximately(property.floatValue, Convert.ToSingle(_objects[i]))) return i;
+					if (isBool && property.boolValue == Convert.ToBoolean(data.Objects[i])) return i;
+					if (isString && property.stringValue == Convert.ToString(data.Objects[i])) return i;
+					if (isInt && property.intValue == Convert.ToInt32(data.Objects[i])) return i;
+					if (isFloat && Mathf.Approximately(property.floatValue, Convert.ToSingle(data.Objects[i]))) return i;
 
 					if (value == null) value = property.GetValue();
 					Func<bool> isAtIndex = isTypeReference ?
-						() => value.Equals(_objects[i]) :
-						() => value == _objects[i];
+						() => value.Equals(data.Objects[i]) :
+						() => value == data.Objects[i];
 
 					if (isAtIndex.Invoke()) return i;
 				}
@@ -307,9 +320,9 @@ namespace MyBox.Internal
 
 			void ApplyNewValue(int newValueIndex)
 			{
-				var newValue = _objects[newValueIndex];
+				var newValue = data.Objects[newValueIndex];
 
-				if (validateSelection != null && !validateSelection(newValueIndex, newValue))
+				if (data.ValidateSelection != null && !data.ValidateSelection(newValueIndex, newValue))
 					return;
 
 				if (isBool) property.boolValue = Convert.ToBoolean(newValue);
@@ -323,7 +336,7 @@ namespace MyBox.Internal
 				}
 
 				property.serializedObject.ApplyModifiedProperties();
-				valueChanged?.Invoke();
+				data.ValueChanged?.Invoke();
 			}
 		}
 	}
