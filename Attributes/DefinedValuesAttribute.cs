@@ -290,16 +290,17 @@ namespace MyBox.Internal
 
 			EditorGUI.BeginChangeCheck();
 			EditorGUI.BeginProperty(position, label, property);
-			var newIndex = EditorGUI.Popup(position, label.text, GetSelectedIndex(), data.Labels);
+			var newIndex = EditorGUI.Popup(position, label.text, GetSelectedIndex(out var value), data.Labels);
 			EditorGUI.EndProperty();
 
-			// Apply value of something changed or if if the selected value is null (to make sure any leftover value is override by null e.g. on Editor load)
-			if (EditorGUI.EndChangeCheck() || data.Objects[newIndex] == null)
+			var currentValue = property.GetValue();
+			var valueIsEmpty = currentValue == default || (isString && string.IsNullOrEmpty((string)currentValue));
+			if (EditorGUI.EndChangeCheck() || value == null || valueIsEmpty || currentValue != value)
 				ApplyNewValue(newIndex);
 
-			int GetSelectedIndex()
+			int GetSelectedIndex(out object value)
 			{
-				object value = null;
+				value = null;
 				for (var i = 0; i < data.Objects.Length; i++)
 				{
 					if (isBool && property.boolValue == Convert.ToBoolean(data.Objects[i])) return i;
@@ -308,11 +309,12 @@ namespace MyBox.Internal
 					if (isFloat && Mathf.Approximately(property.floatValue, Convert.ToSingle(data.Objects[i]))) return i;
 
 					if (value == null) value = property.GetValue();
-					Func<bool> isAtIndex = isTypeReference ?
-						() => value.Equals(data.Objects[i]) :
-						() => value == data.Objects[i];
+					Func<object, bool> isAtIndex = isTypeReference ?
+						v => v.Equals(data.Objects[i]) :
+						v => v == data.Objects[i];
 
-					if (isAtIndex.Invoke()) return i;
+
+					if (isAtIndex.Invoke(value)) return i;
 				}
 
 				return 0;
