@@ -134,7 +134,7 @@ namespace MyBox.Internal
 			public string[] Labels;
 			public Type ValueType;
 			public bool Initialized;
-			public Action ValueChanged;
+			public Action<object> ValueChanged;
 			public Func<int, object, bool> ValidateSelection;
 		}
 
@@ -236,7 +236,7 @@ namespace MyBox.Internal
 			{
 				(var method, var methodOwner) = GetMethod(valueChangedMethodName);
 				if (method == null) return;
-				data.ValueChanged += () => method.Invoke(methodOwner, null);
+				data.ValueChanged += previousValue => method.Invoke(methodOwner, new object[] { previousValue });
 			}
 
 			void GetvalidationMethod()
@@ -322,6 +322,7 @@ namespace MyBox.Internal
 
 			void ApplyNewValue(int newValueIndex)
 			{
+				var oldValue = property.GetValue();
 				var newValue = data.Objects[newValueIndex];
 
 				if (data.ValidateSelection != null && !data.ValidateSelection(newValueIndex, newValue))
@@ -338,7 +339,7 @@ namespace MyBox.Internal
 				}
 
 				property.serializedObject.ApplyModifiedProperties();
-				data.ValueChanged?.Invoke();
+				data.ValueChanged?.Invoke(oldValue);
 			}
 		}
 	}
