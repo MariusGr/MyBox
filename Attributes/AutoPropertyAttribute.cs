@@ -88,13 +88,10 @@ namespace MyBox.Internal
 		}
 	}
 
+
 	[InitializeOnLoad]
 	public static class AutoPropertyHandler
 	{
-		private static GetComponentsDerivedFromType
-		// TODO
-
-
 		private static readonly Dictionary<AutoPropertyMode, Func<MyEditor.ObjectField, Func<Object, bool>, Object[]>> ObjectsGetters
 			= new Dictionary<AutoPropertyMode, Func<MyEditor.ObjectField, Func<Object, bool>, Object[]>>
 			{
