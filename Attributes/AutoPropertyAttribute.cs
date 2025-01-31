@@ -1,10 +1,6 @@
 using System;
 using UnityEngine;
 
-#if UNITY_EDITOR
-using SolidUtilities.Editor;
-#endif
-
 namespace MyBox
 {
 	/// <summary>
@@ -87,24 +83,23 @@ namespace MyBox.Internal
 		public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
 		{
 			GUI.enabled = false;
-			FillProperty(property);
 			EditorGUI.PropertyField(position, property, label);
 			GUI.enabled = true;
 		}
+	}
 
-		private readonly Dictionary<AutoPropertyMode, Func<SerializedProperty, Func<Object, bool>, Object[]>> ObjectsGetters
-			= new Dictionary<AutoPropertyMode, Func<SerializedProperty, SerializedObject, Func<Object, bool>, Object[]>>
+
+	[InitializeOnLoad]
+	public static class AutoPropertyHandler
+	{
+		private static readonly Dictionary<AutoPropertyMode, Func<MyEditor.ObjectField, Func<Object, bool>, Object[]>> ObjectsGetters
+			= new Dictionary<AutoPropertyMode, Func<MyEditor.ObjectField, Func<Object, bool>, Object[]>>
 			{
-				[AutoPropertyMode.Children] = (property, context, pred) =>
-                {
-					var self = context.As<Component>();
-					var type = property.GetObjectType();
-                    var objects = self?.GetComponentsInChildren(type, true)
-                                        .Where(pred).ToList();
-					objects?.AddRange(self?.GetComponents(type));
-					return objects?.ToArray();
-                },
-				[AutoPropertyMode.Parent] = (property, pred) => property.serializedObject.Context.As<Component>()
+				[AutoPropertyMode.Children] = (property, pred) => property.Context
+					.As<Component>()
+					?.GetComponentsInChildren(property.Field.FieldType.GetElementType() ?? property.Field.FieldType, true)
+					.Where(pred).ToArray(),
+				[AutoPropertyMode.Parent] = (property, pred) => property.Context.As<Component>()
 					?.GetComponentsInParent(property.Field.FieldType.GetElementType() ?? property.Field.FieldType, true)
 					.Where(pred).ToArray(),
 				[AutoPropertyMode.Scene] = (property, pred) => MyEditor
@@ -120,29 +115,53 @@ namespace MyBox.Internal
 					.Where(pred).ToArray()
 			};
 
-		private void FillProperty(SerializedProperty property)
+		static AutoPropertyHandler()
 		{
-			var apAttribute = (AutoPropertyAttribute)attribute;
+			// this event is for GameObjects in the project.
+			MyEditorEvents.OnSave += CheckAssets;
+			MyEditorEvents.BeforePlaymode += CheckAssets;
+			// this event is for prefabs saved in edit mode.
+			PrefabStage.prefabSaved += CheckComponentsInPrefab;
+			PrefabStage.prefabStageOpened += stage => CheckComponentsInPrefab(stage.prefabContentsRoot);
+		}
+
+		private static void CheckAssets()
+		{
+			var toFill = MyBoxSettings.EnableSOCheck ? 
+				MyEditor.GetFieldsWithAttributeFromAll<AutoPropertyAttribute>() : 
+				MyEditor.GetFieldsWithAttributeFromScenes<AutoPropertyAttribute>();
+			toFill.ForEach(FillProperty);
+		}
+
+		private static void CheckComponentsInPrefab(GameObject prefab) => MyEditor
+			.GetFieldsWithAttribute<AutoPropertyAttribute>(prefab)
+			.ForEach(FillProperty);
+
+		private static void FillProperty(MyEditor.ObjectField property)
+		{
+			var apAttribute = property.Field
+				.GetCustomAttributes(typeof(AutoPropertyAttribute), true)
+				.FirstOrDefault() as AutoPropertyAttribute;
 			if (apAttribute == null) return;
 			Func<Object, bool> predicateMethod = apAttribute.PredicateMethodTarget == null ?
 				apAttribute.PredicateMethodName == null ?
 				(Func<Object, bool>)(_ => true) :
 				(Func<Object, bool>)Delegate.CreateDelegate(typeof(Func<Object, bool>),
-					property.serializedObject,
+					property.Context,
 					apAttribute.PredicateMethodName) :
 				(Func<Object, bool>)Delegate.CreateDelegate(typeof(Func<Object, bool>),
 					apAttribute.PredicateMethodTarget,
 					apAttribute.PredicateMethodName);
 
 			var matchedObjects = ObjectsGetters[apAttribute.Mode]
-				.Invoke(property, property.serializedObject, predicateMethod);
+				.Invoke(property, predicateMethod);
 
-			if (property.isArray)
+			if (property.Field.FieldType.IsArray)
 			{
 				if (matchedObjects != null && (matchedObjects.Length > 0 || apAttribute.AllowEmpty))
 				{
-					var serializedObject = property.serializedObject;
-					var serializedProperty = serializedObject.FindProperty(property.name);
+					var serializedObject = new SerializedObject(property.Context);
+					var serializedProperty = serializedObject.FindProperty(property.Field.Name);
 					serializedProperty.ReplaceArray(matchedObjects);
 					serializedObject.ApplyModifiedProperties();
 					return;
@@ -153,15 +172,16 @@ namespace MyBox.Internal
 				var obj = matchedObjects.FirstOrDefault();
 				if (obj != null || apAttribute.AllowEmpty)
 				{
-					var serializedObject = property.serializedObject;
-					property.objectReferenceValue = obj;
+					var serializedObject = new SerializedObject(property.Context);
+					var serializedProperty = serializedObject.FindProperty(property.Field.Name);
+					serializedProperty.objectReferenceValue = obj;
 					serializedObject.ApplyModifiedProperties();
 					return;
 				}
 			}
 
-			Debug.LogError($"{property.name} caused: {property.name} is failed to Auto Assign property. No match",
-				property.serializedObject.targetObject);
+			Debug.LogError($"{property.Context.name} caused: {property.Field.Name} is failed to Auto Assign property. No match",
+				property.Context);
 		}
 	}
 }

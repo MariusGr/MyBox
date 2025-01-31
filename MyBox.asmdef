@@ -2,9 +2,7 @@
     "name": "MyBox",
     "rootNamespace": "",
     "references": [
-        "TypeReferences",
-        "SolidUtilities.Editor",
-        "SolidUtilities"
+        "TypeReferences"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
