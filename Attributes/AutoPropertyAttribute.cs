@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using UnityEngine;
 
 namespace MyBox
@@ -23,7 +24,7 @@ namespace MyBox
 		public readonly AutoPropertyMode Mode;
 		public readonly string PredicateMethodName;
 		public readonly Type PredicateMethodTarget;
-  		public readonly bool AllowEmpty;
+		public readonly bool AllowEmpty;
 
 		public AutoPropertyAttribute(AutoPropertyMode mode = AutoPropertyMode.Children,
 			string predicateMethodName = null,
@@ -33,7 +34,7 @@ namespace MyBox
 			Mode = mode;
 			PredicateMethodTarget = predicateMethodTarget;
 			PredicateMethodName = predicateMethodName;
-   			AllowEmpty = allowEmpty;
+			AllowEmpty = allowEmpty;
 		}
 	}
 
@@ -92,7 +93,7 @@ namespace MyBox.Internal
 	[InitializeOnLoad]
 	public static class AutoPropertyHandler
 	{
-		private static readonly Dictionary<AutoPropertyMode, Func<MyEditor.ObjectField, Func<Object, bool>, Object[]>> ObjectsGetters
+		private static readonly Dictionary<AutoPropertyMode, Func<MyEditor.ObjectField, Func<Object, bool>, Object[]>> ComponentGetters
 			= new Dictionary<AutoPropertyMode, Func<MyEditor.ObjectField, Func<Object, bool>, Object[]>>
 			{
 				[AutoPropertyMode.Children] = (property, pred) => property.Context
@@ -115,6 +116,31 @@ namespace MyBox.Internal
 					.Where(pred).ToArray()
 			};
 
+		private static readonly Dictionary<AutoPropertyMode, Func<MyEditor.ObjectField, Func<Object, bool>, Object[]>> GameObjectGetters
+			= new Dictionary<AutoPropertyMode, Func<MyEditor.ObjectField, Func<Object, bool>, Object[]>>
+			{
+				[AutoPropertyMode.Children] = (property, pred) => property.Context
+					.As<Component>().transform
+							   .Cast<Transform>()
+							   .Select(t => t.gameObject)
+							   .Where(pred).ToArray(),
+				[AutoPropertyMode.Parent] = (property, pred) => property.Context
+					.As<Component>().transform
+							   .parent
+							   .Cast<Transform>()
+							   .Select(t => t.gameObject)
+							   .Where(pred).ToArray(),
+				[AutoPropertyMode.Scene] = (property, pred) => MyEditor
+					.GetAllComponentsInSceneOf(property.Context,
+						typeof(GameObject))
+					.Select(c => c.gameObject)
+					.Where(pred).ToArray(),
+				[AutoPropertyMode.Asset] = (property, pred) => Resources
+					.FindObjectsOfTypeAll<GameObject>()
+					.Where(AssetDatabase.Contains)
+					.Where(pred).ToArray(),
+			};
+
 		static AutoPropertyHandler()
 		{
 			// this event is for GameObjects in the project.
@@ -127,8 +153,8 @@ namespace MyBox.Internal
 
 		private static void CheckAssets()
 		{
-			var toFill = MyBoxSettings.EnableSOCheck ? 
-				MyEditor.GetFieldsWithAttributeFromAll<AutoPropertyAttribute>() : 
+			var toFill = MyBoxSettings.EnableSOCheck ?
+				MyEditor.GetFieldsWithAttributeFromAll<AutoPropertyAttribute>() :
 				MyEditor.GetFieldsWithAttributeFromScenes<AutoPropertyAttribute>();
 			toFill.ForEach(FillProperty);
 		}
@@ -153,10 +179,15 @@ namespace MyBox.Internal
 					apAttribute.PredicateMethodTarget,
 					apAttribute.PredicateMethodName);
 
-			var matchedObjects = ObjectsGetters[apAttribute.Mode]
-				.Invoke(property, predicateMethod);
+			bool isArray = property.Field.FieldType.IsArray;
+			bool isGameObjectType = isArray && property.Field.FieldType.GetElementType() == typeof(GameObject) ||
+									!isArray && property.Field.FieldType == typeof(GameObject);
 
-			if (property.Field.FieldType.IsArray)
+			var matchedObjects = isGameObjectType ?
+				GameObjectGetters[apAttribute.Mode].Invoke(property, predicateMethod) :
+				ComponentGetters[apAttribute.Mode].Invoke(property, predicateMethod);
+
+			if (isArray)
 			{
 				if (matchedObjects != null && (matchedObjects.Length > 0 || apAttribute.AllowEmpty))
 				{
