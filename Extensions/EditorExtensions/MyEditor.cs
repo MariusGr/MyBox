@@ -205,7 +205,13 @@ namespace MyBox.EditorTools
 			foreach (var o in objects)
 			{
 				if (o == null) continue;
-				var fields = o.GetType().GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+				var fields = new List<FieldInfo>();
+				var type = o.GetType();
+				while (type != null && type != typeof(object))
+				{
+					fields.AddRange(type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance));
+					type = type.BaseType;
+				}
 				foreach (var field in fields)
 				{
 					if (!field.IsDefined(desiredAttribute, false)) continue;
