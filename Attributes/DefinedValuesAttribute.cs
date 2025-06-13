@@ -287,6 +287,7 @@ namespace MyBox.Internal
 			bool isInt = data.ValueType == typeof(int);
 			bool isFloat = data.ValueType == typeof(float);
 			bool isTypeReference = data.ValueType == typeof(TypeReference);
+			bool IsEnum = data.ValueType.IsEnum;
 
 			EditorGUI.BeginChangeCheck();
 			EditorGUI.BeginProperty(position, label, property);
@@ -306,13 +307,13 @@ namespace MyBox.Internal
 					if (isBool && property.boolValue == Convert.ToBoolean(data.Objects[i])) return i;
 					if (isString && property.stringValue == Convert.ToString(data.Objects[i])) return i;
 					if (isInt && property.intValue == Convert.ToInt32(data.Objects[i])) return i;
+					if (IsEnum && property.enumValueIndex == Convert.ToInt32(data.Objects[i])) return i;
 					if (isFloat && Mathf.Approximately(property.floatValue, Convert.ToSingle(data.Objects[i]))) return i;
 
 					if (value == null) value = property.GetValue();
 					Func<object, bool> isAtIndex = isTypeReference ?
 						v => v.Equals(data.Objects[i]) :
 						v => v == data.Objects[i];
-
 
 					if (isAtIndex.Invoke(value)) return i;
 				}
