@@ -307,7 +307,7 @@ namespace MyBox.Internal
 					if (isBool && property.boolValue == Convert.ToBoolean(data.Objects[i])) return i;
 					if (isString && property.stringValue == Convert.ToString(data.Objects[i])) return i;
 					if (isInt && property.intValue == Convert.ToInt32(data.Objects[i])) return i;
-					if (IsEnum && property.enumValueIndex == Convert.ToInt32(data.Objects[i])) return i;
+					if (IsEnum && property.enumValueFlag == Convert.ToInt32(data.Objects[i])) return i;
 					if (isFloat && Mathf.Approximately(property.floatValue, Convert.ToSingle(data.Objects[i]))) return i;
 
 					if (value == null) value = property.GetValue();
