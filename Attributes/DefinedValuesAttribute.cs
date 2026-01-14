@@ -315,9 +315,14 @@ namespace MyBox.Internal
 						v => v.Equals(data.Objects[i]) :
 						v => v == data.Objects[i];
 
-					if (isAtIndex.Invoke(value)) return i;
+					if (isAtIndex.Invoke(value))
+                    {
+                        if (!IsEnum && !isTypeReference) value = data.Objects[i];
+                        return i;
+					}
 				}
 
+                if (!IsEnum && !isTypeReference) value = data.Objects[0];
 				return 0;
 			}
 
