@@ -25,11 +25,17 @@ namespace MyBox.EditorTools
 			var type = typeof(EditorWindow).Assembly.GetType("UnityEditor.SceneHierarchyWindow");
 			var methodInfo = type.GetMethod("SetExpandedRecursive");
 			if (methodInfo == null) return;
+			var parameters = methodInfo.GetParameters();
+			if (parameters.Length != 2) return;
 
 			EditorApplication.ExecuteMenuItem("Window/General/Hierarchy");
 			var window = EditorWindow.focusedWindow;
+			var entityId = go.GetEntityId();
+			object hierarchyId = parameters[0].ParameterType == typeof(int)
+				? unchecked((int)(EntityId.ToULong(entityId) & 0xFFFFFFFFu))
+				: (object)entityId;
 
-			methodInfo.Invoke(window, new object[] { go.GetInstanceID(), expand });
+			methodInfo.Invoke(window, new object[] { hierarchyId, expand });
 		}
 
 		/// <summary>

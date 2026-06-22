@@ -45,9 +45,9 @@ namespace MyBox.Internal
 		{
 			public readonly int Depth;
 			public readonly string Info;
-			public readonly int ObjectId;
+			public readonly EntityId ObjectId;
 
-			public PropertyData(int depth, string info, int objectId)
+			public PropertyData(int depth, string info, EntityId objectId)
 			{
 				if (depth < 0) depth = 0;
 				Depth = depth;
@@ -110,17 +110,17 @@ namespace MyBox.Internal
 			foreach (PropertyData property in _propertiesData)
 			{
 				EditorGUI.indentLevel = property.Depth;
-				if (property.ObjectId > 0)
+				if (property.ObjectId != EntityId.None)
 				{
 					GUILayout.BeginHorizontal();
 				}
 
 				EditorGUILayout.SelectableLabel(property.Info, _richTextStyle, GUILayout.Height(20));
-				if (property.ObjectId > 0)
+				if (property.ObjectId != EntityId.None)
 				{
 					if (GUILayout.Button(">Ping>", GUILayout.Width(50)))
 					{
-						Selection.activeInstanceID = property.ObjectId;
+						Selection.activeEntityId = property.ObjectId;
 					}
 
 					GUILayout.EndHorizontal();
@@ -196,7 +196,9 @@ namespace MyBox.Internal
 
 
 			bool isObject = property.propertyType == SerializedPropertyType.ObjectReference && property.objectReferenceValue != null;
-			int propertyId = isObject ? property.objectReferenceValue.GetInstanceID() : 0;
+			EntityId propertyId = isObject
+				? property.objectReferenceValue.GetEntityId()
+				: EntityId.None;
 
 
 			_propertiesData.Add(new PropertyData(property.depth, description, propertyId));
